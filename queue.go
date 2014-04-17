@@ -2,17 +2,18 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/streadway/amqp"
 )
 
-type Request struct {
-	Headers amqp.Table
-	Body    string
+type request struct {
+	headers amqp.Table
+	body    string
 }
-type RequestChan chan *Request
+type requestCh chan *request
 
 var (
 	backlog  = flag.Uint("backlog", 8192, "incoming channel capacity")
@@ -22,8 +23,17 @@ var (
 	tag      = flag.String("tag", "pipe2mq", "AMQP consumer tag")
 	uri      = flag.String("uri", "amqp://localhost:5672/", "AMQP URI")
 
-	incoming = make(RequestChan, *backlog)
+	incoming = make(requestCh, *backlog)
 )
+
+func newRequest(body string) *request {
+	return &request{
+		headers: amqp.Table{
+			"Time": fmt.Sprintf("%d", time.Now().Unix()),
+		},
+		body: body,
+	}
+}
 
 func dial() (ch *amqp.Channel, err error) {
 	conn, err := amqp.Dial(*uri)
@@ -40,7 +50,7 @@ func dial() (ch *amqp.Channel, err error) {
 	return
 }
 
-func (rc RequestChan) publish() error {
+func (rc requestCh) publish() error {
 	var (
 		err error
 		out *amqp.Channel
@@ -60,9 +70,9 @@ func (rc RequestChan) publish() error {
 
 		err = out.Publish(*exchange, *key, false, false,
 			amqp.Publishing{
-				Headers:      amqp.Table(r.Headers),
+				Headers:      amqp.Table(r.headers),
 				DeliveryMode: amqp.Persistent,
-				Body:         []byte(r.Body),
+				Body:         []byte(r.body),
 			},
 		)
 		if err != nil {

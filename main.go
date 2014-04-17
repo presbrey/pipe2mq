@@ -3,14 +3,11 @@ package main
 import (
 	"bufio"
 	"flag"
-	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/streadway/amqp"
 )
 
 var (
@@ -27,6 +24,9 @@ func escape(s string) (r string) {
 
 func init() {
 	flag.Parse()
+	if os.Getenv("GOMAXPROCS") == "" {
+		runtime.GOMAXPROCS(runtime.NumCPU())
+	}
 }
 
 func main() {
@@ -38,12 +38,7 @@ func main() {
 			data = escape(data)
 		}
 
-		elt := &Request{
-			Headers: amqp.Table{
-				"Time": fmt.Sprintf("%d", time.Now().Unix()),
-			},
-			Body: data,
-		}
+		elt := newRequest(data)
 		incoming <- elt
 	}
 	if err := scanner.Err(); err != nil {
